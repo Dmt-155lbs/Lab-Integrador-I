@@ -1,0 +1,20 @@
+# --- Secretos (nunca al repo) ---
+.env
+keys/
+*.p8
+*.pem
+
+# --- Artefactos de dbt ---
+dbt/**/target/
+dbt/**/dbt_packages/
+dbt/**/logs/
+
+# --- Datos descargados localmente ---
+data/
+*.parquet
+
+# --- Sistema / editores ---
+__pycache__/
+.venv/
+Thumbs.db
+.DS_Store
