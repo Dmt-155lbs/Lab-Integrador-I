@@ -62,7 +62,7 @@ CREATE USER IF NOT EXISTS LAB_INT_SVC
   COMMENT = 'Lab Integrador I: usuario tecnico de Kestra y dbt';
 
 -- Va en un ALTER aparte para poder rotar la llave re-ejecutando el script
-ALTER USER LAB_INT_SVC SET RSA_PUBLIC_KEY = <PEGA_AQUI_TU_LLAVE_PUBLICA>;
+ALTER USER LAB_INT_SVC SET RSA_PUBLIC_KEY = 'PEGA_AQUI_TU_LLAVE_PUBLICA';
 
 GRANT ROLE LAB_INT_ROLE TO USER LAB_INT_SVC;
 
