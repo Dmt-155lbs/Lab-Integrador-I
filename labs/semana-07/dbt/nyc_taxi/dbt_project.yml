@@ -1,0 +1,56 @@
+# =====================================================================
+# Lab Integrador I · NYC Yellow Taxi — Proyecto dbt
+# Arquitectura medallon: RAW (carga Kestra) -> BRONZE -> SILVER -> GOLD
+# =====================================================================
+name: nyc_taxi
+version: "1.0.0"
+config-version: 2
+profile: nyc_taxi
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+vars:
+  # Rango del calendario de dim_date (cubre todo el periodo del laboratorio)
+  date_spine_start: "2025-01-01"
+  date_spine_end: "2026-12-31"
+
+models:
+  nyc_taxi:
+    bronze:
+      +schema: bronze
+      +materialized: incremental
+    silver:
+      +schema: silver
+      +materialized: table
+    gold:
+      +schema: gold
+      +materialized: table
+
+seeds:
+  nyc_taxi:
+    # Datos de referencia oficiales de la TLC: viven en BRONZE (tal cual la fuente)
+    +schema: bronze
+    +quote_columns: false
+    taxi_zone_lookup:
+      +column_types:
+        LocationID: integer
+        Borough: varchar
+        Zone: varchar
+        service_zone: varchar
+    tlc_vendors:
+      +column_types:
+        vendor_id: integer
+        vendor_name: varchar
+    tlc_rate_codes:
+      +column_types:
+        rate_code_id: integer
+        rate_code_description: varchar
+    tlc_payment_types:
+      +column_types:
+        payment_type_id: integer
+        payment_type_description: varchar

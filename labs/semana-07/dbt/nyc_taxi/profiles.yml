@@ -1,0 +1,21 @@
+# =====================================================================
+# Perfil de conexion de dbt a Snowflake.
+# No contiene secretos: todo se lee de variables de entorno, que Kestra
+# inyecta desde el .env (ver kestra/flows/main_nyc_taxi.dbt_build.yml).
+# Autenticacion por llave RSA (usuario de servicio LAB_INT_SVC).
+# =====================================================================
+nyc_taxi:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+      schema: SILVER            # esquema por defecto; cada capa define el suyo
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      threads: 4
+      query_tag: lab_integrador_dbt
+      client_session_keep_alive: false

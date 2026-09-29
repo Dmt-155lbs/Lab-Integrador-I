@@ -1,0 +1,22 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Esquema de aterrizaje. Kestra (flow ingest_yellow_taxi) carga aqui los
+      Parquet de la TLC tal cual, con COPY INTO + MATCH_BY_COLUMN_NAME.
+    database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+    schema: RAW
+    tables:
+      - name: yellow_tripdata
+        identifier: YELLOW_TRIPDATA
+        description: >
+          Viajes de NYC Yellow Taxi, una fila por registro de los archivos
+          mensuales yellow_tripdata_AAAA-MM.parquet, mas metadata de carga.
+        columns:
+          - name: source_file
+            description: Ruta del archivo en el stage (ej. yellow/yellow_tripdata_2025-01.parquet).
+          - name: source_row_number
+            description: Numero de fila dentro del archivo de origen.
+          - name: loaded_at
+            description: Momento de la carga (METADATA$START_SCAN_TIME del COPY INTO).

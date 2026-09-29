@@ -1,0 +1,37 @@
+id: pipeline
+namespace: nyc_taxi
+description: |
+  Pipeline ELT completo de NYC Yellow Taxi (punto de entrada unico):
+    1) ingest_yellow_taxi -> descarga los Parquet y los carga en RAW (idempotente)
+    2) dbt_build          -> dbt build: BRONZE -> SILVER -> GOLD + tests
+  Se ejecuta a mano (Execute) o automaticamente el dia 5 de cada mes.
+
+inputs:
+  - id: force_reload
+    type: BOOLEAN
+    defaults: false
+    description: true = recarga en RAW los meses aunque ya existan
+
+tasks:
+  - id: ingest
+    type: io.kestra.plugin.core.flow.Subflow
+    namespace: nyc_taxi
+    flowId: ingest_yellow_taxi
+    inputs:
+      force_reload: "{{ inputs.force_reload }}"
+    wait: true
+    transmitFailed: true
+
+  - id: transform
+    type: io.kestra.plugin.core.flow.Subflow
+    namespace: nyc_taxi
+    flowId: dbt_build
+    inputs:
+      dbt_command: dbt build
+    wait: true
+    transmitFailed: true
+
+triggers:
+  - id: monthly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 6 5 * *"   # dia 5 de cada mes, 06:00: carga meses nuevos y reconstruye capas

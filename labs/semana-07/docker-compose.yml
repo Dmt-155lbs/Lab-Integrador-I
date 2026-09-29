@@ -28,6 +28,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/labint-kestra-wd:/tmp/labint-kestra-wd
       - ./kestra/flows:/app/flows
+      - ./dbt:/app/dbt:ro         # proyecto dbt (lo copia el flow dbt_build)
     environment:
       # --- Snowflake: configuracion (no secreta) -> {{ envs.snowflake_xxx }}
       ENV_SNOWFLAKE_ACCOUNT:   "${SNOWFLAKE_ACCOUNT:?Falta SNOWFLAKE_ACCOUNT en .env}"

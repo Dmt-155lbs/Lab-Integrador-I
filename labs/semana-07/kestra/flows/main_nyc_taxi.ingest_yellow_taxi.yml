@@ -110,10 +110,7 @@ tasks:
     type: io.kestra.plugin.core.log.Log
     message: "Resumen RAW ({{ outputs.summary.size }} periodos): {{ outputs.summary.rows }}"
 
-triggers:
-  - id: monthly
-    type: io.kestra.plugin.core.trigger.Schedule
-    cron: "0 6 5 * *"   # dia 5 de cada mes, 06:00: carga los meses nuevos
+# La ejecucion programada vive en el flow "pipeline" (ingesta + dbt).
 
 pluginDefaults:
   - type: io.kestra.plugin.jdbc.snowflake

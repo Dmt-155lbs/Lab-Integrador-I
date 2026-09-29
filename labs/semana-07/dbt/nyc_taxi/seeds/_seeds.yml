@@ -1,0 +1,14 @@
+version: 2
+
+seeds:
+  - name: taxi_zone_lookup
+    description: >
+      Tabla oficial de zonas de taxi de la TLC (265 zonas), descargada de
+      https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv.
+      264 = Unknown y 265 = Outside of NYC.
+  - name: tlc_vendors
+    description: Proveedores TPEP segun el diccionario de datos de la TLC (18-mar-2025).
+  - name: tlc_rate_codes
+    description: Codigos de tarifa (RatecodeID) segun el diccionario de datos de la TLC.
+  - name: tlc_payment_types
+    description: Tipos de pago (payment_type) segun el diccionario de datos de la TLC.

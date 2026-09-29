@@ -1,0 +1,46 @@
+id: dbt_build
+namespace: nyc_taxi
+description: |
+  Fase 3 · Ejecuta el proyecto dbt (BRONZE -> SILVER -> GOLD + tests) en Snowflake.
+  1) Copia el proyecto dbt montado en /app/dbt (carpeta ./dbt del repo) al
+     directorio de trabajo de la ejecucion.
+  2) Corre dbt dentro de un contenedor (imagen oficial de Kestra con
+     dbt-snowflake), autenticando con la llave RSA del usuario de servicio.
+
+inputs:
+  - id: dbt_command
+    type: STRING
+    description: >
+      Comando dbt a ejecutar. Ejemplos: "dbt build" (todo), "dbt build --select bronze",
+      "dbt test", "dbt build --full-refresh".
+    defaults: dbt build
+
+tasks:
+  - id: workdir
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: copy_project
+        type: io.kestra.plugin.scripts.shell.Commands
+        taskRunner:
+          type: io.kestra.plugin.core.runner.Process
+        commands:
+          - cp -r /app/dbt/nyc_taxi/. .
+          - rm -rf target logs dbt_packages
+
+      - id: dbt
+        type: io.kestra.plugin.dbt.cli.DbtCLI
+        containerImage: ghcr.io/kestra-io/dbt-snowflake:latest
+        taskRunner:
+          type: io.kestra.plugin.scripts.runner.docker.Docker
+        inputFiles:
+          rsa_key.p8: "{{ secret('SNOWFLAKE_PRIVATE_KEY') }}"
+        env:
+          DBT_PROFILES_DIR: "."
+          SNOWFLAKE_ACCOUNT: "{{ envs.snowflake_account }}"
+          SNOWFLAKE_USER: "{{ envs.snowflake_user }}"
+          SNOWFLAKE_ROLE: "{{ envs.snowflake_role }}"
+          SNOWFLAKE_WAREHOUSE: "{{ envs.snowflake_warehouse }}"
+          SNOWFLAKE_DATABASE: "{{ envs.snowflake_database }}"
+          SNOWFLAKE_PRIVATE_KEY_PATH: rsa_key.p8
+        commands:
+          - "{{ inputs.dbt_command }}"
