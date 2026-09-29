@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: slv_yellow_trips_audit
+    description: >
+      Todas las filas de Bronze estandarizadas (tipos, nombres snake_case,
+      codigos validados) con su veredicto de calidad: rejection_reason
+      (primera regla incumplida, NULL = valida) y duplicate_rank (1 = se conserva).
+    columns:
+      - name: trip_id
+        description: MD5 de todos los atributos de negocio de la fila original.
+      - name: rejection_reason
+        description: >
+          PICKUP_FUERA_DEL_PERIODO, DURACION_NO_POSITIVA, DURACION_MAYOR_24H,
+          TOTAL_NEGATIVO, TOTAL_ATIPICO, DISTANCIA_ATIPICA o NULL si la fila es valida.
+      - name: duplicate_rank
+        description: Posicion dentro de las filas identicas (mismo trip_id); 1 = se conserva.
+
+  - name: slv_yellow_trips
+    description: >
+      Viajes limpios, estandarizados y sin duplicados. Grano: un viaje valido
+      y unico (trip_id). Es la fuente de la capa Gold.
+    columns:
+      - name: trip_id
+        description: Identificador unico del viaje (MD5 de sus atributos de negocio).
+      - name: vendor_id
+        description: Proveedor TPEP (1, 2, 6, 7; -1 = codigo no documentado).
+      - name: pickup_datetime
+        description: Fecha y hora de inicio del taximetro.
+      - name: dropoff_datetime
+        description: Fecha y hora de fin del taximetro.
+      - name: passenger_count
+        description: Pasajeros (1-6). NULL = no informado o fuera de rango (0 o >6).
+      - name: trip_distance_miles
+        description: Distancia recorrida en millas.
+      - name: rate_code_id
+        description: Codigo de tarifa; 99 = nulo/desconocido (incluye los nulos de Flex Fare).
+      - name: is_store_and_forward
+        description: TRUE si el viaje se guardo en el vehiculo antes de enviarse. NULL = no informado.
+      - name: pickup_location_id
+        description: Zona TLC de recogida.
+      - name: dropoff_location_id
+        description: Zona TLC de destino.
+      - name: payment_type_id
+        description: Tipo de pago (0-6 segun diccionario TLC).
+      - name: request_source
+        description: Origen de la solicitud (campo nuevo desde 2026-06; NULL antes).
+      - name: total_amount
+        description: Monto total cobrado al pasajero (USD, sin propinas en efectivo).
+      - name: source_period
+        description: Periodo (mes) del archivo de origen.
+
+  - name: slv_trip_quality_summary
+    description: >
+      Filas por periodo y resultado de calidad (VALIDO, DUPLICADO_EXACTO o la
+      regla incumplida). Documenta el impacto de cada decision de limpieza.
