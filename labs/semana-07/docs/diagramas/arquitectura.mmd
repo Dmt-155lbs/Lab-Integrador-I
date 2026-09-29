@@ -1,0 +1,30 @@
+flowchart LR
+    subgraph TLC["NYC TLC - fuente publica"]
+        PQ["yellow_tripdata_AAAA-MM.parquet<br/>ene-2025 a ago-2026"]
+        ZL["taxi_zone_lookup.csv<br/>+ diccionario de datos"]
+    end
+
+    subgraph DC["Docker Compose - maquina local"]
+        direction TB
+        K["Kestra v1.3.37<br/>pipeline -> ingest_yellow_taxi -> ingest_month<br/>pipeline -> dbt_build<br/>trigger mensual dia 5"]
+        PG[("Postgres<br/>metadata de Kestra")]
+        DBT["Contenedor dbt<br/>dbt-core 1.11 + dbt-snowflake<br/>Docker task runner"]
+        K --- PG
+        K -->|"dbt build"| DBT
+    end
+
+    subgraph SF["Snowflake - LAB_INT_NYC_TAXI - warehouse LAB_INT_WH XS"]
+        direction LR
+        ST[/"RAW.TLC_STAGE<br/>stage interno"/]
+        RAW[("RAW<br/>YELLOW_TRIPDATA<br/>+ SOURCE_FILE, LOADED_AT")]
+        BR[("BRONZE<br/>brz_yellow_tripdata<br/>+ seeds TLC")]
+        SI[("SILVER<br/>slv_yellow_trips<br/>audit + quality summary")]
+        GO[("GOLD<br/>fct_trips + 6 dimensiones<br/>esquema estrella")]
+        ST -->|"COPY INTO<br/>MATCH_BY_COLUMN_NAME"| RAW
+        RAW --> BR --> SI --> GO
+    end
+
+    PQ -->|"HTTP download"| K
+    K -->|"PUT"| ST
+    ZL -.->|"dbt seed"| BR
+    DBT -->|"SQL - llave RSA<br/>usuario LAB_INT_SVC"| BR
