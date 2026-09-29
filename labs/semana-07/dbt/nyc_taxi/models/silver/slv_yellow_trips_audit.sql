@@ -75,7 +75,9 @@ select
             then 'PICKUP_FUERA_DEL_PERIODO'
         when dropoff_datetime <= pickup_datetime
             then 'DURACION_NO_POSITIVA'
-        when datediff('minute', pickup_datetime, dropoff_datetime) > 1440
+        -- en segundos: DATEDIFF('minute') cuenta cambios de minuto, no tiempo
+        -- transcurrido (24 h 49 s daba 1440 y se colaba; lo detecto un test)
+        when datediff('second', pickup_datetime, dropoff_datetime) > 86400
             then 'DURACION_MAYOR_24H'
         when total_amount < 0
             then 'TOTAL_NEGATIVO'

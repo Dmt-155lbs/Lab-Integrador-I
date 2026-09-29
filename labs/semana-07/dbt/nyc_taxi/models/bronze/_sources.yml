@@ -16,7 +16,13 @@ sources:
         columns:
           - name: source_file
             description: Ruta del archivo en el stage (ej. yellow/yellow_tripdata_2025-01.parquet).
+            data_tests:
+              - not_null
           - name: source_row_number
             description: Numero de fila dentro del archivo de origen.
+            data_tests:
+              - not_null
           - name: loaded_at
             description: Momento de la carga (METADATA$START_SCAN_TIME del COPY INTO).
+            data_tests:
+              - not_null

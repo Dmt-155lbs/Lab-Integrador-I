@@ -9,65 +9,158 @@ models:
     columns:
       - name: trip_key
         description: PK. Identificador unico del viaje (trip_id de Silver).
+        data_tests:
+          - unique
+          - not_null
       - name: pickup_date_key
         description: FK -> dim_date.date_key (fecha de recogida, AAAAMMDD).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
       - name: pickup_time_key
         description: FK -> dim_time.time_key (hora de recogida, 0-23).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: time_key
       - name: dropoff_date_key
         description: FK -> dim_date.date_key (fecha de destino).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
       - name: dropoff_time_key
         description: FK -> dim_time.time_key (hora de destino).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time')
+                field: time_key
       - name: pickup_location_id
         description: FK -> dim_zone.location_id (zona de recogida).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_zone')
+                field: location_id
       - name: dropoff_location_id
         description: FK -> dim_zone.location_id (zona de destino).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_zone')
+                field: location_id
       - name: vendor_id
         description: FK -> dim_vendor.vendor_id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_vendor')
+                field: vendor_id
       - name: rate_code_id
         description: FK -> dim_rate_code.rate_code_id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_rate_code')
+                field: rate_code_id
       - name: payment_type_id
         description: FK -> dim_payment_type.payment_type_id.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_payment_type')
+                field: payment_type_id
       - name: trip_duration_minutes
         description: Metrica. Duracion del viaje en minutos.
+        data_tests:
+          - not_null
       - name: trip_distance_miles
         description: Metrica. Distancia en millas.
+        data_tests:
+          - not_null
       - name: passenger_count
         description: Metrica. Pasajeros (NULL = no informado).
       - name: total_amount
         description: Metrica. Monto total cobrado (USD).
+        data_tests:
+          - not_null
 
   - name: dim_date
     description: Dimension calendario (un dia por fila, 2025-01-01 a 2026-12-31).
     columns:
       - name: date_key
         description: PK. Fecha como entero AAAAMMDD.
+        data_tests:
+          - unique
+          - not_null
+      - name: full_date
+        data_tests:
+          - unique
+          - not_null
 
   - name: dim_time
     description: Dimension hora del dia (24 filas) con franja horaria.
     columns:
       - name: time_key
         description: PK. Hora del dia (0-23).
+        data_tests:
+          - unique
+          - not_null
+      - name: day_part
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Madrugada', 'Manana', 'Tarde', 'Noche']
 
   - name: dim_zone
     description: Dimension zonas TLC (265). Role-playing - recogida y destino.
     columns:
       - name: location_id
         description: PK. LocationID de la TLC.
+        data_tests:
+          - unique
+          - not_null
+      - name: borough
+        data_tests:
+          - not_null
 
   - name: dim_vendor
     description: Dimension proveedor TPEP (incluye -1 = desconocido).
     columns:
       - name: vendor_id
         description: PK. VendorID de la TLC.
+        data_tests:
+          - unique
+          - not_null
 
   - name: dim_rate_code
     description: Dimension codigo de tarifa (99 = nulo/desconocido).
     columns:
       - name: rate_code_id
         description: PK. RatecodeID de la TLC.
+        data_tests:
+          - unique
+          - not_null
 
   - name: dim_payment_type
     description: Dimension tipo de pago (0 = Flex Fare ... 6 = viaje anulado).
     columns:
       - name: payment_type_id
         description: PK. payment_type de la TLC.
+        data_tests:
+          - unique
+          - not_null

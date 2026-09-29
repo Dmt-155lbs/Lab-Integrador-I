@@ -8,11 +8,19 @@ models:
     columns:
       - name: _source_file
         description: Archivo de origen (ruta en el stage de Snowflake).
+        data_tests:
+          - not_null
       - name: _source_period
         description: Periodo (primer dia del mes) del archivo de origen, ej. 2025-01-01.
+        data_tests:
+          - not_null
       - name: _source_row_number
         description: Numero de fila dentro del archivo de origen.
+        data_tests:
+          - not_null
       - name: _loaded_at
         description: Fecha y hora en que el archivo se cargo a RAW.
+        data_tests:
+          - not_null
       - name: _bronze_processed_at
         description: Fecha y hora en que dbt proceso la fila en Bronze.

@@ -7,7 +7,7 @@ Modelos involucrados:
 | Modelo | Grano | Rol |
 |---|---|---|
 | `slv_yellow_trips_audit` | una fila de Bronze | Estandariza **todas** las filas y registra su veredicto (`rejection_reason`, `duplicate_rank`) |
-| `slv_yellow_trips` | un viaje válido y único | Tabla limpia (fuente de Gold) = filas sin regla incumplida y `duplicate_rank = 1` |
+| `slv_yellow_trips` | un viaje válido y único | Tabla limpia (fuente de Gold) = filas sin regla incumplida y `duplicate_rank = 1` (73.089.892 filas) |
 | `slv_trip_quality_summary` | período × resultado | Cuántas filas deja o descarta cada regla |
 
 Fuente de los códigos: [Data Dictionary – Yellow Taxi Trip Records (TLC, 18-mar-2025)](https://www.nyc.gov/assets/tlc/downloads/pdf/data_dictionary_trip_records_yellow.pdf).
@@ -18,11 +18,11 @@ Fuente de los códigos: [Data Dictionary – Yellow Taxi Trip Records (TLC, 18-m
 
 | Resultado | Filas | % |
 |---|---:|---:|
-| **VALIDO** | **73.089.893** | **97,337 %** |
+| **VALIDO** | **73.089.892** | **97,337 %** |
 | TOTAL_NEGATIVO | 1.120.953 | 1,493 % |
 | DURACION_NO_POSITIVA | 874.801 | 1,165 % |
 | DISTANCIA_ATIPICA | 2.583 | 0,003 % |
-| DURACION_MAYOR_24H | 572 | 0,001 % |
+| DURACION_MAYOR_24H | 573 | 0,001 % |
 | PICKUP_FUERA_DEL_PERIODO | 345 | < 0,001 % |
 | TOTAL_ATIPICO | 93 | < 0,001 % |
 | DUPLICADO_EXACTO | 1 | < 0,001 % |
@@ -80,7 +80,7 @@ El perfilado mostró que **todos** los nulos de `passenger_count`, `RatecodeID`,
 |---|---|---|---:|---|
 | 1 | `PICKUP_FUERA_DEL_PERIODO` | El mes de recogida ≠ mes del archivo | 345 | Fechas imposibles (hasta el año 2001) dentro de archivos de 2025–2026: error del reloj del taxímetro. |
 | 2 | `DURACION_NO_POSITIVA` | `dropoff <= pickup` | 874.801 | Un viaje no puede terminar antes o en el mismo segundo en que empieza; no permite calcular duración ni velocidad. El 85 % son de tarjeta de crédito; probablemente son transacciones canceladas o de prueba. |
-| 3 | `DURACION_MAYOR_24H` | Duración > 1.440 min | 572 | Taxímetro olvidado encendido. El percentil 99 de la duración es de 72 min. |
+| 3 | `DURACION_MAYOR_24H` | Duración > 86.400 s (24 h) | 573 | Taxímetro olvidado encendido. El percentil 99 de la duración es de 72 min. Se mide en segundos: la primera versión usaba `DATEDIFF('minute')`, que cuenta cambios de minuto y dejaba pasar un viaje de 24 h 49 s (lo detectó el test `assert_fct_trips_business_rules`). |
 | 4 | `TOTAL_NEGATIVO` | `total_amount < 0` | 1.120.953 | Son **reversos contables** (disputas, anulaciones, reembolsos), no viajes: 849.370 tienen un "espejo" positivo idéntico con el mismo vendor, horas y zonas. Se conservan los viajes originales positivos. |
 | 5 | `TOTAL_ATIPICO` | `total_amount > 1.000 USD` | 93 | El percentil 99,9 es de 180 USD; hay totales de hasta 863.380 USD, que son errores de captura. |
 | 6 | `DISTANCIA_ATIPICA` | `trip_distance > 500 millas` | 2.583 | Hay distancias de hasta 397.994 millas (error de odómetro/GPS). El percentil 99 es de 19,5 millas. |
