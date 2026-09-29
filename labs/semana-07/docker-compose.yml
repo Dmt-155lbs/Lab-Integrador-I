@@ -1,0 +1,78 @@
+
+name: lab-integrador-i
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: kestra
+      POSTGRES_USER: kestra
+      POSTGRES_PASSWORD: k3str4   # BD interna de Kestra, no se expone fuera de Docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  kestra:
+    image: kestra/kestra:v1.3.37
+    command: server standalone
+    user: "root"                  # necesario para usar el socket de Docker (dbt correra en un contenedor)
+    stop_grace_period: 6m
+    ports:
+      - "8090:8080"               # 8090 en tu PC para no chocar con otro Kestra en 8080
+    volumes:
+      - kestra-data:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/labint-kestra-wd:/tmp/labint-kestra-wd
+      - ./kestra/flows:/app/flows
+    environment:
+      # --- Snowflake: configuracion (no secreta) -> {{ envs.snowflake_xxx }}
+      ENV_SNOWFLAKE_ACCOUNT:   "${SNOWFLAKE_ACCOUNT:?Falta SNOWFLAKE_ACCOUNT en .env}"
+      ENV_SNOWFLAKE_USER:      "${SNOWFLAKE_USER:?Falta SNOWFLAKE_USER en .env}"
+      ENV_SNOWFLAKE_ROLE:      "${SNOWFLAKE_ROLE:?Falta SNOWFLAKE_ROLE en .env}"
+      ENV_SNOWFLAKE_WAREHOUSE: "${SNOWFLAKE_WAREHOUSE:?Falta SNOWFLAKE_WAREHOUSE en .env}"
+      ENV_SNOWFLAKE_DATABASE:  "${SNOWFLAKE_DATABASE:?Falta SNOWFLAKE_DATABASE en .env}"
+      # --- Snowflake: secreto en base64 -> {{ secret('SNOWFLAKE_PRIVATE_KEY') }}
+      SECRET_SNOWFLAKE_PRIVATE_KEY: "${SNOWFLAKE_PRIVATE_KEY_B64:?Falta SNOWFLAKE_PRIVATE_KEY_B64 en .env}"
+      KESTRA_CONFIGURATION: |
+        datasources:
+          postgres:
+            url: jdbc:postgresql://postgres:5432/kestra
+            driverClassName: org.postgresql.Driver
+            username: kestra
+            password: k3str4
+        kestra:
+          server:
+            basic-auth:
+              username: ${KESTRA_ADMIN_USER:?Falta KESTRA_ADMIN_USER en .env}
+              password: ${KESTRA_ADMIN_PASSWORD:?Falta KESTRA_ADMIN_PASSWORD en .env}
+          repository:
+            type: postgres
+          queue:
+            type: postgres
+          storage:
+            type: local
+            local:
+              base-path: /app/storage
+          tasks:
+            tmp-dir:
+              path: /tmp/labint-kestra-wd/tmp
+          url: http://localhost:8090/
+          tutorial-flows:
+            enabled: false
+        micronaut:
+          io:
+            watch:
+              enabled: true
+              paths:
+                - /app/flows
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  kestra-data:
