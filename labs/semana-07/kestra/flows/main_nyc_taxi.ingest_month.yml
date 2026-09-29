@@ -1,0 +1,118 @@
+id: ingest_month
+namespace: nyc_taxi
+description: |
+  Fase 2 · Ingesta de UN mes de NYC Yellow Taxi a Snowflake (esquema RAW).
+  Descarga el Parquet de la TLC -> PUT al stage interno -> COPY INTO RAW.
+  Idempotente:
+    * Si el mes ya esta en RAW no hace nada (salvo force_reload = true).
+    * La carga es DELETE del mes y luego COPY: nunca duplica. Si el COPY
+      falla, el mes queda en 0 filas y se recarga en la siguiente ejecucion.
+    * Si la TLC aun no publica el mes, lo registra y termina sin error.
+  Lo invoca ingest_yellow_taxi (que crea el stage, el file format y la tabla),
+  pero tambien se puede ejecutar solo para (re)cargar un mes puntual.
+
+inputs:
+  - id: month
+    type: STRING
+    description: Periodo a cargar (AAAA-MM)
+    validator: "^\\d{4}-(0[1-9]|1[0-2])$"
+  - id: force_reload
+    type: BOOLEAN
+    defaults: false
+    description: true = recarga el mes aunque ya exista en RAW
+
+tasks:
+  - id: already_loaded
+    type: io.kestra.plugin.jdbc.snowflake.Query
+    fetchType: FETCH_ONE
+    sql: |
+      SELECT COUNT(*) AS N
+      FROM RAW.YELLOW_TRIPDATA
+      WHERE ENDSWITH(SOURCE_FILE, 'yellow_tripdata_{{ inputs.month }}.parquet')
+
+  - id: should_load
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ outputs.already_loaded.row.N == 0 or inputs.force_reload }}"
+    then:
+      - id: check_published
+        type: io.kestra.plugin.core.http.Request
+        uri: "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{{ inputs.month }}.parquet"
+        method: GET
+        headers:
+          Range: "bytes=0-0"   # pide 1 byte: solo verifica que el archivo existe
+        options:
+          allowFailed: true
+
+      - id: is_published
+        type: io.kestra.plugin.core.flow.If
+        condition: "{{ outputs.check_published.code < 300 }}"
+        then:
+          - id: download
+            type: io.kestra.plugin.core.http.Download
+            uri: "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{{ inputs.month }}.parquet"
+
+          - id: upload_to_stage
+            type: io.kestra.plugin.jdbc.snowflake.Upload
+            from: "{{ outputs.download.uri }}"
+            stageName: "@{{ envs.snowflake_database }}.RAW.TLC_STAGE"
+            prefix: yellow
+            fileName: "yellow_tripdata_{{ inputs.month }}.parquet"
+            compress: false   # el Parquet ya viene comprimido
+
+          - id: delete_month   # idempotencia: si el mes ya existia, se borra antes de recargar
+            type: io.kestra.plugin.jdbc.snowflake.Query
+            sql: |
+              DELETE FROM RAW.YELLOW_TRIPDATA
+              WHERE ENDSWITH(SOURCE_FILE, 'yellow_tripdata_{{ inputs.month }}.parquet')
+
+          - id: copy_into_raw
+            type: io.kestra.plugin.jdbc.snowflake.Query
+            sql: |
+              COPY INTO RAW.YELLOW_TRIPDATA
+              FROM @RAW.TLC_STAGE/yellow/
+              FILES = ('yellow_tripdata_{{ inputs.month }}.parquet')
+              FILE_FORMAT = (FORMAT_NAME = 'RAW.FF_PARQUET')
+              MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+              INCLUDE_METADATA = (
+                SOURCE_FILE       = METADATA$FILENAME,
+                SOURCE_ROW_NUMBER = METADATA$FILE_ROW_NUMBER,
+                LOADED_AT         = METADATA$START_SCAN_TIME
+              )
+              FORCE = TRUE
+              PURGE = TRUE
+              ON_ERROR = ABORT_STATEMENT
+
+          - id: rows_loaded
+            type: io.kestra.plugin.jdbc.snowflake.Query
+            fetchType: FETCH_ONE
+            sql: |
+              SELECT COUNT(*) AS N
+              FROM RAW.YELLOW_TRIPDATA
+              WHERE ENDSWITH(SOURCE_FILE, 'yellow_tripdata_{{ inputs.month }}.parquet')
+
+          - id: log_loaded
+            type: io.kestra.plugin.core.log.Log
+            message: "{{ inputs.month }}: {{ outputs.rows_loaded.row.N }} filas cargadas en RAW.YELLOW_TRIPDATA"
+        else:
+          - id: log_unpublished
+            type: io.kestra.plugin.core.log.Log
+            level: WARN
+            message: "{{ inputs.month }}: la TLC aun no publica este archivo (HTTP {{ outputs.check_published.code }}). Se omite; se cargara en una proxima ejecucion."
+    else:
+      - id: log_skipped
+        type: io.kestra.plugin.core.log.Log
+        message: "{{ inputs.month }}: ya esta en RAW ({{ outputs.already_loaded.row.N }} filas). Se omite."
+
+finally:
+  - id: purge_files   # borra el Parquet descargado del storage de Kestra
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+
+pluginDefaults:
+  - type: io.kestra.plugin.jdbc.snowflake
+    values:
+      url: "jdbc:snowflake://{{ envs.snowflake_account }}.snowflakecomputing.com"
+      username: "{{ envs.snowflake_user }}"
+      privateKey: "{{ secret('SNOWFLAKE_PRIVATE_KEY') }}"
+      role: "{{ envs.snowflake_role }}"
+      warehouse: "{{ envs.snowflake_warehouse }}"
+      database: "{{ envs.snowflake_database }}"

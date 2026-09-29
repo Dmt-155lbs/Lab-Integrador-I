@@ -1,0 +1,126 @@
+id: ingest_yellow_taxi
+namespace: nyc_taxi
+description: |
+  Fase 2 · Ingesta de NYC Yellow Taxi (ene-2025 a ago-2026) a Snowflake RAW.
+  1) Crea (si no existen) file format, stage y tabla RAW.
+  2) Ejecuta el subflow ingest_month por cada mes (2 en paralelo).
+  3) Muestra un resumen de filas por periodo.
+  Se puede re-ejecutar sin duplicar: los meses ya cargados se omiten.
+
+inputs:
+  - id: months
+    type: ARRAY
+    itemType: STRING
+    description: Meses a cargar (AAAA-MM)
+    defaults:
+      - "2025-01"
+      - "2025-02"
+      - "2025-03"
+      - "2025-04"
+      - "2025-05"
+      - "2025-06"
+      - "2025-07"
+      - "2025-08"
+      - "2025-09"
+      - "2025-10"
+      - "2025-11"
+      - "2025-12"
+      - "2026-01"
+      - "2026-02"
+      - "2026-03"
+      - "2026-04"
+      - "2026-05"
+      - "2026-06"
+      - "2026-07"
+      - "2026-08"
+  - id: force_reload
+    type: BOOLEAN
+    defaults: false
+    description: true = recarga los meses aunque ya existan en RAW
+
+tasks:
+  - id: setup_raw
+    type: io.kestra.plugin.jdbc.snowflake.Queries
+    transaction: false
+    sql: |
+      CREATE FILE FORMAT IF NOT EXISTS RAW.FF_PARQUET
+        TYPE = PARQUET
+        USE_LOGICAL_TYPE = TRUE
+        COMMENT = 'Parquet NYC TLC (respeta tipos logicos, ej. timestamps)';
+
+      CREATE STAGE IF NOT EXISTS RAW.TLC_STAGE
+        FILE_FORMAT = (FORMAT_NAME = 'RAW.FF_PARQUET')
+        COMMENT = 'Stage interno: Parquet en transito (se purgan tras el COPY)';
+
+      CREATE TABLE IF NOT EXISTS RAW.YELLOW_TRIPDATA (
+        VENDORID               NUMBER(38,0),
+        TPEP_PICKUP_DATETIME   TIMESTAMP_NTZ,
+        TPEP_DROPOFF_DATETIME  TIMESTAMP_NTZ,
+        PASSENGER_COUNT        NUMBER(38,0),
+        TRIP_DISTANCE          FLOAT,
+        RATECODEID             NUMBER(38,0),
+        STORE_AND_FWD_FLAG     VARCHAR,
+        PULOCATIONID           NUMBER(38,0),
+        DOLOCATIONID           NUMBER(38,0),
+        PAYMENT_TYPE           NUMBER(38,0),
+        FARE_AMOUNT            FLOAT,
+        EXTRA                  FLOAT,
+        MTA_TAX                FLOAT,
+        TIP_AMOUNT             FLOAT,
+        TOLLS_AMOUNT           FLOAT,
+        IMPROVEMENT_SURCHARGE  FLOAT,
+        TOTAL_AMOUNT           FLOAT,
+        CONGESTION_SURCHARGE   FLOAT,
+        AIRPORT_FEE            FLOAT,
+        CBD_CONGESTION_FEE     FLOAT,
+        REQUEST_SOURCE         VARCHAR,       -- aparece desde 2026-06 (NULL antes)
+        SOURCE_FILE            VARCHAR,       -- metadata: archivo/periodo de origen
+        SOURCE_ROW_NUMBER      NUMBER(38,0),  -- metadata: fila dentro del archivo
+        LOADED_AT              TIMESTAMP_LTZ  -- metadata: fecha de carga
+      )
+      COMMENT = 'RAW: NYC Yellow Taxi tal cual los Parquet de la TLC + metadata de carga';
+
+  - id: each_month
+    type: io.kestra.plugin.core.flow.ForEach
+    values: "{{ inputs.months }}"
+    concurrencyLimit: 2
+    tasks:
+      - id: run_month
+        type: io.kestra.plugin.core.flow.Subflow
+        namespace: nyc_taxi
+        flowId: ingest_month
+        inputs:
+          month: "{{ taskrun.value }}"
+          force_reload: "{{ inputs.force_reload }}"
+        wait: true
+        transmitFailed: true
+
+  - id: summary
+    type: io.kestra.plugin.jdbc.snowflake.Query
+    fetchType: FETCH
+    sql: |
+      SELECT SUBSTR(SOURCE_FILE, -15, 7) AS PERIODO,
+             COUNT(*)                    AS FILAS,
+             MAX(LOADED_AT)              AS CARGADO_EN
+      FROM RAW.YELLOW_TRIPDATA
+      GROUP BY 1
+      ORDER BY 1
+
+  - id: log_summary
+    type: io.kestra.plugin.core.log.Log
+    message: "Resumen RAW ({{ outputs.summary.size }} periodos): {{ outputs.summary.rows }}"
+
+triggers:
+  - id: monthly
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 6 5 * *"   # dia 5 de cada mes, 06:00: carga los meses nuevos
+
+pluginDefaults:
+  - type: io.kestra.plugin.jdbc.snowflake
+    values:
+      url: "jdbc:snowflake://{{ envs.snowflake_account }}.snowflakecomputing.com"
+      username: "{{ envs.snowflake_user }}"
+      privateKey: "{{ secret('SNOWFLAKE_PRIVATE_KEY') }}"
+      role: "{{ envs.snowflake_role }}"
+      warehouse: "{{ envs.snowflake_warehouse }}"
+      database: "{{ envs.snowflake_database }}"
